@@ -20,7 +20,7 @@ class Viewport
 public:
 	int width, height;
 	float distance = 0.1;
-	bool **pixel;
+	vec3 **pixel;
 	vec3 startPosition;
 	vec3 vectorWidth, vectorHeight;
 };
@@ -43,11 +43,26 @@ public:
 	vec3 vertices[3];
 };
 
-bool init(Camera &camera, Viewport &viewport, vector<Sphere> &spheres, vector<Triangle> &triangles)
+class Light
+{
+public:
+	vec3 position;
+	vec3 color;
+	void setLight(vec3 position, vec3 color)
+	{
+		this->position = position;
+		this->color = color;
+	}
+};
+
+bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &spheres, vector<Triangle> &triangles)
 {
 	char type;
 	float input[4];
 	Triangle triangle;
+	// init light
+	light.setLight(vec3(2.0, 2.0, 2.0)/*position*/, vec3(30, 0, 0)/*color*/);
+	
 	ifstream fin("hw2_input.txt");
 	if (!fin)
 		return false;
@@ -73,12 +88,16 @@ bool init(Camera &camera, Viewport &viewport, vector<Sphere> &spheres, vector<Tr
 		case 'R':
 			fin >> viewport.width;
 			fin >> viewport.height;
-			viewport.pixel = new bool*[viewport.height];
+			viewport.pixel = new vec3*[viewport.height];
 			for (int i = 0; i < viewport.height; i++)
-				viewport.pixel[i] = new bool[viewport.width];
+				viewport.pixel[i] = new vec3[viewport.width];
 			for (int i = 0; i < viewport.height; i++)
 				for (int j = 0; j < viewport.width; j++)
-					viewport.pixel[i][j] = false;
+				{
+					viewport.pixel[i][j][0] = 0;
+					viewport.pixel[i][j][1] = 0;
+					viewport.pixel[i][j][2] = 0;
+				}
 			break;
 		case 'S':
 			for (int i = 0; i < 4; i++)
@@ -102,7 +121,16 @@ bool init(Camera &camera, Viewport &viewport, vector<Sphere> &spheres, vector<Tr
 	return true;
 }
 
-void rayTracing(Camera &camera, Viewport &viewport, vector<Sphere> &spheres, vector<Triangle> &triangles)
+void PhongShading(vec3 &point, vec3 &pixel, Light light/*, float Ka, float Kd, float Ks*/)
+{
+	float Ka = 0.1, Kd, Ks;
+	// Ambient
+	vec3 ambient = Ka * light.color;
+	ambient = prod(ambient, vec3 (100, 100, 100)/*objectColor*/);
+	pixel = ambient;
+}
+
+void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> &spheres, vector<Triangle> &triangles)
 {
 	//calculate the center position of the viewport
 	float t;
@@ -128,6 +156,7 @@ void rayTracing(Camera &camera, Viewport &viewport, vector<Sphere> &spheres, vec
 	vec3 ray;
 	vec3 v1, v2, normal;
 	vec3 intersection;
+	vec3 point;
 	float a = 0, b = 0, c = 0;
 	for (int i = 0; i < viewport.height; i++)
 	{
@@ -146,7 +175,11 @@ void rayTracing(Camera &camera, Viewport &viewport, vector<Sphere> &spheres, vec
 				}
 				c -= pow(spheres[nSphere].radius, 2);
 				if (pow(b, 2) - 4 * a * c >= 0)
-					viewport.pixel[i][j] = true;
+				{
+					t = (-b - pow(b, 2) - 4 * a * c) / 2 * a;
+					point = camera.position + ray * t;
+					PhongShading(point, viewport.pixel[i][j], light);
+				}
 				a = b = c = 0;
 			}
 			//triangle
@@ -162,13 +195,17 @@ void rayTracing(Camera &camera, Viewport &viewport, vector<Sphere> &spheres, vec
 				if (((triangles[nTriangle].vertices[1] - triangles[nTriangle].vertices[0]) ^ (intersection - triangles[nTriangle].vertices[0])) * normal >= 0
 					&& ((triangles[nTriangle].vertices[2] - triangles[nTriangle].vertices[1]) ^ (intersection - triangles[nTriangle].vertices[1])) * normal >= 0
 					&& ((triangles[nTriangle].vertices[0] - triangles[nTriangle].vertices[2]) ^ (intersection - triangles[nTriangle].vertices[2])) * normal >= 0)
+				{
 					/*
 					(p1- p0) x (intersection - p0) * normal >= 0
 					&& (p2- p1) x (intersection - p1) * normal >= 0
 					&& (p0- p2) x (intersection - p2) * normal >= 0
 					the intersection is at the same side of each line
 					*/
-					viewport.pixel[i][j] = true;
+					viewport.pixel[i][j][0] = 255;
+					viewport.pixel[i][j][1] = 255;
+					viewport.pixel[i][j][2] = 255;
+				}
 			}
 		}
 	}
@@ -183,10 +220,13 @@ void draw(Viewport &viewport)
 	image.init(viewport.width, viewport.height);
 	for (x = 0; x < viewport.width; x++) {
 		for (y = 0; y < viewport.height; y++) {
-			if (viewport.pixel[x][y])
-				p.R = p.G = p.B = 255;
-			else
-				p.R = p.G = p.B = 0;
+			p.R = viewport.pixel[x][y][0];
+			p.G = viewport.pixel[x][y][1];
+			p.B = viewport.pixel[x][y][2];
+			/*for (int i = 0; i < 3; i++)
+				cout << viewport.pixel[x][y][i] << " ";
+			cout << endl;
+			system("pause");*/
 			image.writePixel(y, x, p);
 		}
 	}
@@ -197,15 +237,16 @@ int main()
 {
 	Camera camera;
 	Viewport viewport;
+	Light light;
 	vector<Sphere> spheres;
 	vector<Triangle> triangles;
-	if (!init(camera, viewport, spheres, triangles))
+	if (!init(camera, viewport, light, spheres, triangles))
 	{
 		cerr << "Cannot read input file" << endl;
 		system("pause");
 		return 1;
 	}
-	rayTracing(camera, viewport, spheres, triangles);
+	rayTracing(camera, viewport, light, spheres, triangles);
 	draw(viewport);
 	return 0;
 }
