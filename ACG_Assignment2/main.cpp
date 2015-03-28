@@ -94,9 +94,9 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 			for (int i = 0; i < viewport.height; i++)
 				for (int j = 0; j < viewport.width; j++)
 				{
-					viewport.pixel[i][j][0] = 0;
-					viewport.pixel[i][j][1] = 0;
-					viewport.pixel[i][j][2] = 0;
+					viewport.pixel[i][j][0] = 100;
+					viewport.pixel[i][j][1] = 100;
+					viewport.pixel[i][j][2] = 100;
 				}
 			break;
 		case 'S':
@@ -121,7 +121,7 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 	return true;
 }
 
-void PhongShading(vec3 &point, vec3 &pixel, vec3 normal, Light light/*, float Ka, float Kd, float Ks*/)
+void PhongShading(Camera cmaera, vec3 &point, vec3 &pixel, vec3 normal, Light light/*, float Ka, float Kd, float Ks*/)
 {
 	float Ka = 0.1, Kd, Ks;
 	// Ambient
@@ -132,11 +132,22 @@ void PhongShading(vec3 &point, vec3 &pixel, vec3 normal, Light light/*, float Ka
 
 	// Diffuse
 	vec3 lightDirection = (light.position - point).normalize();
-	//cout << normal * lightDirection << endl;
 	float diff = MAX(normal * lightDirection, 0.0);
 	vec3 diffuse = diff * light.color;
 	diffuse = prod(diffuse / 255, objectColor / 255);
-	pixel = (ambient + diffuse) * 255;
+	/*pixel = (ambient + diffuse) * 255;
+	for (int i = 0; i < 3; i++)
+		if (pixel[i] > 255)
+			pixel[i] = 255;*/
+
+	// Specular
+	vec3 specular;
+	int exp = 3;
+	Ks = 0.5;
+	vec3 viewDirection = (cmaera.position - point).normalize();
+	vec3 H = (lightDirection + viewDirection).normalize();
+	specular = Ks * light.color / 255 * pow(normal * H, exp);
+	pixel = (ambient + diffuse + specular) * 255;
 	for (int i = 0; i < 3; i++)
 		if (pixel[i] > 255)
 			pixel[i] = 255;
@@ -191,7 +202,7 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 					t = (-b - sqrt(pow(b, 2) - 4 * a * c)) / 2 * a;
 					point = camera.position + ray * t;
 					normal = (point - spheres[nSphere].center).normalize();
-					PhongShading(point, viewport.pixel[i][j], normal, light);
+					PhongShading(camera, point, viewport.pixel[i][j], normal, light);
 				}
 				a = b = c = 0;
 			}
