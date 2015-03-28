@@ -61,7 +61,7 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 	float input[4];
 	Triangle triangle;
 	// init light
-	light.setLight(vec3(2.0, 2.0, 2.0)/*position*/, vec3(30, 0, 0)/*color*/);
+	light.setLight(vec3(2.0, 2.0, -2.0)/*position*/, vec3(255, 255, 255)/*color*/);
 	
 	ifstream fin("hw2_input.txt");
 	if (!fin)
@@ -121,13 +121,25 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 	return true;
 }
 
-void PhongShading(vec3 &point, vec3 &pixel, Light light/*, float Ka, float Kd, float Ks*/)
+void PhongShading(vec3 &point, vec3 &pixel, vec3 normal, Light light/*, float Ka, float Kd, float Ks*/)
 {
 	float Ka = 0.1, Kd, Ks;
 	// Ambient
 	vec3 ambient = Ka * light.color;
-	ambient = prod(ambient, vec3 (100, 100, 100)/*objectColor*/);
-	pixel = ambient;
+	vec3 objectColor(100, 100, 255);
+	ambient = prod(ambient / 255, objectColor / 255);
+	//pixel = ambient;
+
+	// Diffuse
+	vec3 lightDirection = (light.position - point).normalize();
+	//cout << normal * lightDirection << endl;
+	float diff = MAX(normal * lightDirection, 0.0);
+	vec3 diffuse = diff * light.color;
+	diffuse = prod(diffuse / 255, objectColor / 255);
+	pixel = (ambient + diffuse) * 255;
+	for (int i = 0; i < 3; i++)
+		if (pixel[i] > 255)
+			pixel[i] = 255;
 }
 
 void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> &spheres, vector<Triangle> &triangles)
@@ -176,9 +188,10 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 				c -= pow(spheres[nSphere].radius, 2);
 				if (pow(b, 2) - 4 * a * c >= 0)
 				{
-					t = (-b - pow(b, 2) - 4 * a * c) / 2 * a;
+					t = (-b - sqrt(pow(b, 2) - 4 * a * c)) / 2 * a;
 					point = camera.position + ray * t;
-					PhongShading(point, viewport.pixel[i][j], light);
+					normal = (point - spheres[nSphere].center).normalize();
+					PhongShading(point, viewport.pixel[i][j], normal, light);
 				}
 				a = b = c = 0;
 			}
@@ -216,7 +229,6 @@ void draw(Viewport &viewport)
 	ColorImage image;
 	int x, y;
 	Pixel p = { 0, 0, 0 };
-
 	image.init(viewport.width, viewport.height);
 	for (x = 0; x < viewport.width; x++) {
 		for (y = 0; y < viewport.height; y++) {
