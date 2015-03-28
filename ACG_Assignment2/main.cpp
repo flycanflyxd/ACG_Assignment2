@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 #include <cmath>
+#include <limits>
 #include "algebra3.h"
 #include "imageIO.cpp"
 
@@ -53,6 +54,20 @@ public:
 		this->position = position;
 		this->color = color;
 	}
+};
+
+class Intersection
+{
+public:
+	float t;
+	vec3 position;
+	vec3 normal;
+	vec3 color;
+	Intersection()
+	{
+		t = numeric_limits<float>::max();
+	}
+
 };
 
 bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &spheres, vector<Triangle> &triangles)
@@ -121,7 +136,7 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 	return true;
 }
 
-void PhongShading(Camera cmaera, vec3 &point, vec3 &pixel, vec3 normal, Light light/*, float Ka, float Kd, float Ks*/)
+void PhongShading(Camera cmaera, Intersection &intersection, vec3 &pixel, Light light/*, float Ka, float Kd, float Ks*/)
 {
 	float Ka = 0.1, Kd, Ks;
 	// Ambient
@@ -131,9 +146,8 @@ void PhongShading(Camera cmaera, vec3 &point, vec3 &pixel, vec3 normal, Light li
 	//pixel = ambient;
 
 	// Diffuse
-	vec3 lightDirection = (light.position - point).normalize();
-	float diff = MAX(normal * lightDirection, 0.0);
-	vec3 diffuse = diff * light.color;
+	vec3 lightDirection = (light.position - intersection.position).normalize();
+	vec3 diffuse = MAX(intersection.normal * lightDirection, 0.0) * light.color;
 	diffuse = prod(diffuse / 255, objectColor / 255);
 	/*pixel = (ambient + diffuse) * 255;
 	for (int i = 0; i < 3; i++)
@@ -142,11 +156,11 @@ void PhongShading(Camera cmaera, vec3 &point, vec3 &pixel, vec3 normal, Light li
 
 	// Specular
 	vec3 specular;
-	int exp = 3;
+	int exp = 32;
 	Ks = 0.5;
-	vec3 viewDirection = (cmaera.position - point).normalize();
+	vec3 viewDirection = (cmaera.position - intersection.position).normalize();
 	vec3 H = (lightDirection + viewDirection).normalize();
-	specular = Ks * light.color / 255 * pow(normal * H, exp);
+	specular = Ks * light.color / 255 * pow(MAX(intersection.normal * H, 0), exp);
 	pixel = (ambient + diffuse + specular) * 255;
 	for (int i = 0; i < 3; i++)
 		if (pixel[i] > 255)
@@ -178,8 +192,8 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 	viewport.vectorHeight = (downCenter - planeCenter) / (viewport.height * 0.5);
 	vec3 ray;
 	vec3 v1, v2, normal;
-	vec3 intersection;
 	vec3 point;
+	Intersection intersection;
 	float a = 0, b = 0, c = 0;
 	for (int i = 0; i < viewport.height; i++)
 	{
@@ -187,7 +201,7 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 		{
 			ray = viewport.startPosition + i * viewport.vectorHeight + j * viewport.vectorWidth - camera.position;
 			ray.normalize(); //normalize the vector
-			//sphere
+			// Sphere
 			for (int nSphere = 0; nSphere < spheres.size(); nSphere++)
 			{
 				a = 1; //a = nx^2 + ny^2 + nz^2 = 1 cuz it's normalized
@@ -200,25 +214,28 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 				if (pow(b, 2) - 4 * a * c >= 0)
 				{
 					t = (-b - sqrt(pow(b, 2) - 4 * a * c)) / 2 * a;
-					point = camera.position + ray * t;
-					normal = (point - spheres[nSphere].center).normalize();
-					PhongShading(camera, point, viewport.pixel[i][j], normal, light);
+					if (t < intersection.t)
+					{
+						intersection.t = t;
+						intersection.position = camera.position + ray * t;
+						intersection.normal = (intersection.position - spheres[nSphere].center).normalize();
+					}
 				}
 				a = b = c = 0;
 			}
-			//triangle
+			// Triangle
 			for (int nTriangle = 0; nTriangle < triangles.size(); nTriangle++)
 			{
 				v1 = triangles[nTriangle].vertices[1] - triangles[nTriangle].vertices[0];
 				v2 = triangles[nTriangle].vertices[2] - triangles[nTriangle].vertices[0];
-				normal = v1 ^ v2;
+				normal = (v1 ^ v2).normalize();
 				d = normal[0] * triangles[nTriangle].vertices[0][0] + normal[1] * triangles[nTriangle].vertices[0][1] + normal[2] * triangles[nTriangle].vertices[0][2];
 				t = (d - (normal[0] * camera.position[0] + normal[1] * camera.position[1] + normal[2] * camera.position[2]))
 					/ (normal[0] * ray[0] + normal[1] * ray[1] + normal[2] * ray[2]);
-				intersection = camera.position + ray * t;
-				if (((triangles[nTriangle].vertices[1] - triangles[nTriangle].vertices[0]) ^ (intersection - triangles[nTriangle].vertices[0])) * normal >= 0
-					&& ((triangles[nTriangle].vertices[2] - triangles[nTriangle].vertices[1]) ^ (intersection - triangles[nTriangle].vertices[1])) * normal >= 0
-					&& ((triangles[nTriangle].vertices[0] - triangles[nTriangle].vertices[2]) ^ (intersection - triangles[nTriangle].vertices[2])) * normal >= 0)
+				point = camera.position + ray * t;
+				if (((triangles[nTriangle].vertices[1] - triangles[nTriangle].vertices[0]) ^ (point - triangles[nTriangle].vertices[0])) * normal >= 0
+					&& ((triangles[nTriangle].vertices[2] - triangles[nTriangle].vertices[1]) ^ (point - triangles[nTriangle].vertices[1])) * normal >= 0
+					&& ((triangles[nTriangle].vertices[0] - triangles[nTriangle].vertices[2]) ^ (point - triangles[nTriangle].vertices[2])) * normal >= 0)
 				{
 					/*
 					(p1- p0) x (intersection - p0) * normal >= 0
@@ -226,10 +243,21 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 					&& (p0- p2) x (intersection - p2) * normal >= 0
 					the intersection is at the same side of each line
 					*/
-					viewport.pixel[i][j][0] = 255;
+					/*viewport.pixel[i][j][0] = 255;
 					viewport.pixel[i][j][1] = 255;
-					viewport.pixel[i][j][2] = 255;
+					viewport.pixel[i][j][2] = 255;*/
+					if (t < intersection.t)
+					{
+						intersection.t = t;
+						intersection.position = point;
+						intersection.normal = normal;
+					}
 				}
+			}
+			if (intersection.t != numeric_limits<float>::max())
+			{
+				PhongShading(camera, intersection, viewport.pixel[i][j], light);
+				intersection.t = numeric_limits<float>::max();
 			}
 		}
 	}
