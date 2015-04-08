@@ -2,6 +2,7 @@
 #define _GEOMETRY_H
 
 #include "algebra3.h"
+#include <limits>
 
 class Sphere
 {
@@ -25,6 +26,22 @@ class Plane
 {
 public:
 	vec3 vertices[4];
+};
+
+class Intersection
+{
+public:
+	char type;// what kind of object
+	int index;// the index of the object
+	float t;
+	vec3 position;
+	vec3 normal;
+	vec3 color;
+	Intersection()
+	{
+		t = std::numeric_limits<float>::max();
+	}
+
 };
 
 #endif

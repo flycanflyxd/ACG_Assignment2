@@ -66,6 +66,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="algebra3.cpp" />
+    <ClCompile Include="draw.cpp" />
     <ClCompile Include="imageIO.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
@@ -75,7 +76,9 @@
   <ItemGroup>
     <ClInclude Include="algebra3.h" />
     <ClInclude Include="camera.h" />
+    <ClInclude Include="draw.h" />
     <ClInclude Include="geometry.h" />
+    <ClInclude Include="imageIO.h" />
     <ClInclude Include="light.h" />
     <ClInclude Include="viewport.h" />
   </ItemGroup>
