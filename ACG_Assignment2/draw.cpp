@@ -5,12 +5,11 @@ using namespace std;
 bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &spheres, vector<Triangle> &triangles, vector<Plane> &planes)
 {
 	char type;
-	float input[4];
+	float input[10];
 	string trash;
 	Triangle triangle;
 	Plane plane;
-	// init light
-	light.setLight(vec3(2.0, 2.0, -1.0)/*position*/, vec3(255, 255, 255)/*color*/);
+	Material material;
 
 	ifstream fin("hw2_input.txt");
 	if (!fin)
@@ -38,15 +37,15 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 			for (int i = 0; i < viewport.height; i++)
 				for (int j = 0; j < viewport.width; j++)
 				{
-					viewport.pixel[i][j][0] = 100;
-					viewport.pixel[i][j][1] = 100;
-					viewport.pixel[i][j][2] = 100;
+					viewport.pixel[i][j][0] = 0.3;
+					viewport.pixel[i][j][1] = 0.3;
+					viewport.pixel[i][j][2] = 0.3;
 				}
 			break;
 		case 'S':
 			for (int i = 0; i < 4; i++)
 				fin >> input[i];
-			spheres.push_back(Sphere(input[0], input[1], input[2], input[3]));
+			spheres.push_back(Sphere(input[0], input[1], input[2], input[3], material));
 			break;
 		case 'T':
 			for (int i = 0; i < 3; i++)
@@ -55,6 +54,7 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 					fin >> input[j];
 				triangle.vertices[i].set(input[0], input[1], input[2]);
 			}
+			triangle.material = material;
 			triangles.push_back(triangle);
 			break;
 		case 'P':
@@ -64,7 +64,18 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 					fin >> input[j];
 				plane.vertices[i].set(input[0], input[1], input[2]);
 			}
+			plane.material = material;
 			planes.push_back(plane);
+			break;
+		case 'L':
+			for (int i = 0; i < 6; i++)
+				fin >> input[i];
+			light.setLight(vec3(input[0] , input[1], input[2])/*position*/, vec3(input[3], input[4], input[5])/*color*/);
+			break;
+		case 'M':
+			for (int i = 0; i < 10; i++)
+				fin >> input[i];
+			material.setMaterial(vec3(input[0], input[1], input[2]), input[3], input[4], input[5], input[6], input[7], input[8], input[9]);
 			break;
 		default:
 			//return false;
@@ -75,34 +86,26 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 	return true;
 }
 
-void PhongShading(Camera cmaera, Intersection &intersection, vec3 &pixel, Light light/*, float Ka, float Kd, float Ks*/)
+void PhongShading(Camera cmaera, Intersection &intersection, vec3 &pixel, Light light)
 {
-	float Ka = 0.1, Kd = 1.0, Ks = 0.5;
+	Material material = intersection.material;
+	float Ka = material.Ka, Kd = material.Kd, Ks = material.Ks;
 	// Ambient
 	vec3 ambient = Ka * light.color;
-	vec3 objectColor(100, 100, 255);
-	ambient = prod(ambient / 255, objectColor / 255);
-	//pixel = ambient;
+	ambient = prod(ambient / 255, material.color / 255);
 
 	// Diffuse
 	vec3 lightDirection = (light.position - intersection.position).normalize();
 	vec3 diffuse = MAX(intersection.normal * lightDirection, 0.0) * light.color;
-	diffuse = Kd * prod(diffuse / 255, objectColor / 255);
-	/*pixel = (ambient + diffuse) * 255;
-	for (int i = 0; i < 3; i++)co 8
-	if (pixel[i] > 255)
-	pixel[i] = 255;*/
+	diffuse = Kd * prod(diffuse / 255, material.color / 255);
 
 	// Specular
 	vec3 specular;
-	int exp = 32;
+	int exp = material.exp;
 	vec3 viewDirection = (cmaera.position - intersection.position).normalize();
 	vec3 H = (lightDirection + viewDirection).normalize();
 	specular = Ks * light.color / 255 * pow(MAX(intersection.normal * H, 0.0), exp);
-	pixel = (ambient + diffuse + specular) * 255;
-	for (int i = 0; i < 3; i++)
-		if (pixel[i] > 255)
-			pixel[i] = 255;
+	pixel = ambient + diffuse + specular;
 }
 
 bool shadow(Intersection point, Light light, vec3 &pixel, vector<Sphere> &spheres, vector<Triangle> &triangles, vector<Plane> &planes)
@@ -150,7 +153,7 @@ bool shadow(Intersection point, Light light, vec3 &pixel, vector<Sphere> &sphere
 			*/
 			if (t > 0)
 			{
-				pixel = vec3(255, 255, 255);
+				pixel = vec3(0, 0, 0);
 				return false;
 			}
 		}
@@ -172,7 +175,7 @@ bool shadow(Intersection point, Light light, vec3 &pixel, vector<Sphere> &sphere
 		{
 			if (t > 0)
 			{
-				pixel = vec3(255, 255, 255);
+				pixel = vec3(0, 0, 0);
 				return false;
 			}
 		}
@@ -234,6 +237,7 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 						intersection.t = t;
 						intersection.position = camera.position + ray * t;
 						intersection.normal = (intersection.position - spheres[nSphere].center).normalize();
+						intersection.material = spheres[nSphere].material;
 					}
 				}
 				a = b = c = 0;
@@ -265,6 +269,7 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 						intersection.t = t;
 						intersection.position = point;
 						intersection.normal = normal;
+						intersection.material = triangles[nTriangle].material;
 					}
 				}
 			}
@@ -290,11 +295,14 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 						intersection.t = t;
 						intersection.position = point;
 						intersection.normal = normal;
+						intersection.material = planes[nPlane].material;
 					}
 				}
 			}
 			if (intersection.t != numeric_limits<float>::max() && shadow(intersection, light, viewport.pixel[i][j], spheres, triangles, planes))
+			{
 				PhongShading(camera, intersection, viewport.pixel[i][j], light);
+			}
 			intersection.t = numeric_limits<float>::max();
 		}
 	}
@@ -308,6 +316,10 @@ void draw(Viewport &viewport)
 	image.init(viewport.width, viewport.height);
 	for (x = 0; x < viewport.width; x++) {
 		for (y = 0; y < viewport.height; y++) {
+			viewport.pixel[x][y] *= 255;
+			for (int i = 0; i < 3; i++)
+				if (viewport.pixel[x][y][i] > 255)
+					viewport.pixel[x][y][i] = 255;
 			p.R = viewport.pixel[x][y][0];
 			p.G = viewport.pixel[x][y][1];
 			p.B = viewport.pixel[x][y][2];

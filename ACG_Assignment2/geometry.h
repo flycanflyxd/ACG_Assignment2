@@ -2,17 +2,21 @@
 #define _GEOMETRY_H
 
 #include "algebra3.h"
+#include <vector>
 #include <limits>
+#include "material.h"
 
 class Sphere
 {
 public:
 	float radius;
 	vec3 center;
-	Sphere(float x, float y, float z, float radius)
+	Material material;
+	Sphere(float x, float y, float z, float radius, Material material)
 	{
 		center.set(x, y, z);
 		this->radius = radius;
+		this->material = material;
 	}
 };
 
@@ -20,12 +24,14 @@ class Triangle
 {
 public:
 	vec3 vertices[3];
+	Material material;
 };
 
 class Plane
 {
 public:
 	vec3 vertices[4];
+	Material material;
 };
 
 class Intersection
@@ -36,7 +42,7 @@ public:
 	float t;
 	vec3 position;
 	vec3 normal;
-	vec3 color;
+	Material material;
 	Intersection()
 	{
 		t = std::numeric_limits<float>::max();

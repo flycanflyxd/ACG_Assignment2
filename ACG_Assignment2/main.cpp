@@ -1,17 +1,18 @@
 #include "draw.h"
 #include <iostream>
+using namespace std;
 
 int main()
 {
 	Camera camera;
 	Viewport viewport;
 	Light light;
-	std::vector<Sphere> spheres;
-	std::vector<Triangle> triangles;
-	std::vector<Plane> planes;
+	vector<Sphere> spheres;
+	vector<Triangle> triangles;
+	vector<Plane> planes;
 	if (!init(camera, viewport, light, spheres, triangles, planes))
 	{
-		std::cerr << "Cannot read input file" << std::endl;
+		cerr << "Cannot read input file" << endl;
 		system("pause");
 		return 1;
 	}

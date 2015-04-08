@@ -1,3 +1,6 @@
+#ifndef _IMAGEIO_H
+#define _IMAGEIO_H
+
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
@@ -19,3 +22,4 @@ public:
 	void outputPPM(char *filename);
 };
 
+#endif
