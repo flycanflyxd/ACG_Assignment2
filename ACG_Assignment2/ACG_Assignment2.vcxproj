@@ -74,6 +74,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="algebra3.h" />
+    <ClInclude Include="camera.h" />
+    <ClInclude Include="geometry.h" />
+    <ClInclude Include="light.h" />
+    <ClInclude Include="viewport.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

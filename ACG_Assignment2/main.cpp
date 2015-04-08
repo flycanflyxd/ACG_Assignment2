@@ -4,64 +4,13 @@
 #include <cmath>
 #include <limits>
 #include <string>
-#include "algebra3.h"
 #include "imageIO.cpp"
+#include "geometry.h"
+#include "camera.h"
+#include "viewport.h"
+#include "light.h"
 
 using namespace std;
-
-class Camera
-{
-public:
-	vec3 position;
-	vec3 direction;
-	float FOV;
-};
-
-class Viewport
-{
-public:
-	int width, height;
-	float distance = 0.1;
-	vec3 **pixel;
-	vec3 startPosition;
-	vec3 vectorWidth, vectorHeight;
-};
-
-class Sphere
-{
-public:
-	float radius;
-	vec3 center;
-	Sphere(float x, float y, float z, float radius)
-	{
-		center.set(x, y, z);
-		this->radius = radius;
-	}
-};
-
-class Triangle
-{
-public:
-	vec3 vertices[3];
-};
-
-class Plane
-{
-public:
-	vec3 vertices[4];
-};
-
-class Light
-{
-public:
-	vec3 position;
-	vec3 color;
-	void setLight(vec3 position, vec3 color)
-	{
-		this->position = position;
-		this->color = color;
-	}
-};
 
 class Intersection
 {
@@ -98,18 +47,13 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 		switch (type)
 		{
 		case 'E':
-			for (int i = 0; i < 3; i++)
-				fin >> input[i];
-			camera.position.set(input[0], input[1], input[2]);
+			fin >> camera.position[0] >> camera.position[1] >> camera.position[2];
 			break;
 		case 'V':
-			for (int i = 0; i < 3; i++)
-				fin >> input[i];
-			camera.direction.set(input[0], input[1], input[2]);
+			fin >> camera.direction[0] >> camera.direction[1] >> camera.direction[2];
 			break;
 		case 'F':
-			fin >> input[0];
-			camera.FOV = input[0];
+			fin >> camera.FOV;
 			break;
 		case 'R':
 			fin >> viewport.width;
@@ -159,7 +103,7 @@ bool init(Camera &camera, Viewport &viewport, Light &light, vector<Sphere> &sphe
 
 void PhongShading(Camera cmaera, Intersection &intersection, vec3 &pixel, Light light/*, float Ka, float Kd, float Ks*/)
 {
-	float Ka = 0.1, Kd, Ks;
+	float Ka = 0.1, Kd = 1.0, Ks = 0.5;
 	// Ambient
 	vec3 ambient = Ka * light.color;
 	vec3 objectColor(100, 100, 255);
@@ -169,19 +113,18 @@ void PhongShading(Camera cmaera, Intersection &intersection, vec3 &pixel, Light 
 	// Diffuse
 	vec3 lightDirection = (light.position - intersection.position).normalize();
 	vec3 diffuse = MAX(intersection.normal * lightDirection, 0.0) * light.color;
-	diffuse = prod(diffuse / 255, objectColor / 255);
+	diffuse = Kd * prod(diffuse / 255, objectColor / 255);
 	/*pixel = (ambient + diffuse) * 255;
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 3; i++)co 8
 		if (pixel[i] > 255)
 			pixel[i] = 255;*/
 
 	// Specular
 	vec3 specular;
 	int exp = 32;
-	Ks = 0.5;
 	vec3 viewDirection = (cmaera.position - intersection.position).normalize();
 	vec3 H = (lightDirection + viewDirection).normalize();
-	specular = Ks * light.color / 255 * pow(MAX(intersection.normal * H, 0), exp);
+	specular = Ks * light.color / 255 * pow(MAX(intersection.normal * H, 0.0), exp);
 	pixel = (ambient + diffuse + specular) * 255;
 	for (int i = 0; i < 3; i++)
 		if (pixel[i] > 255)
@@ -231,7 +174,7 @@ bool shadow(Intersection point, Light light, vec3 &pixel, vector<Sphere> &sphere
 			&& (p0- p2) x (intersection - p2) * normal >= 0
 			the intersection is at the same side of each line
 			*/
-			if (t > 0 && !(point.type == 's' && point.index == nTriangle))
+			if (t > 0)
 			{
 				pixel = vec3(255, 255, 255);
 				return false;
@@ -253,7 +196,7 @@ bool shadow(Intersection point, Light light, vec3 &pixel, vector<Sphere> &sphere
 			&& ((planes[nPlane].vertices[3] - planes[nPlane].vertices[2]) ^ (intersection - planes[nPlane].vertices[2])) * normal >= 0
 			&& ((planes[nPlane].vertices[0] - planes[nPlane].vertices[3]) ^ (intersection - planes[nPlane].vertices[3])) * normal >= 0)
 		{
-			if (t > 0 && !(point.type == 'p' && point.index == nPlane))
+			if (t > 0)
 			{
 				pixel = vec3(255, 255, 255);
 				return false;
@@ -310,7 +253,7 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 				if (pow(b, 2) - 4 * a * c >= 0)
 				{
 					t = (-b - sqrt(pow(b, 2) - 4 * a * c)) / (2 * a);
-					if (t < intersection.t)
+					if (t < intersection.t && t > 0)
 					{
 						intersection.type = 's';
 						intersection.index = nSphere;
@@ -341,7 +284,7 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 					&& (p0- p2) x (intersection - p2) * normal >= 0
 					the intersection is at the same side of each line
 					*/
-					if (t < intersection.t)
+					if (t < intersection.t && t > 0)
 					{
 						intersection.type = 't';
 						intersection.index = nTriangle;
@@ -376,12 +319,9 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 					}
 				}
 			}
-			if (intersection.t != numeric_limits<float>::max())
-			{
+			if (intersection.t != numeric_limits<float>::max() && shadow(intersection, light, viewport.pixel[i][j], spheres, triangles, planes))
 				PhongShading(camera, intersection, viewport.pixel[i][j], light);
-				shadow(intersection, light, viewport.pixel[i][j], spheres, triangles, planes);
-				intersection.t = numeric_limits<float>::max();
-			}
+			intersection.t = numeric_limits<float>::max();
 		}
 	}
 }
@@ -397,10 +337,6 @@ void draw(Viewport &viewport)
 			p.R = viewport.pixel[x][y][0];
 			p.G = viewport.pixel[x][y][1];
 			p.B = viewport.pixel[x][y][2];
-			/*for (int i = 0; i < 3; i++)
-				cout << viewport.pixel[x][y][i] << " ";
-			cout << endl;
-			system("pause");*/
 			image.writePixel(y, x, p);
 		}
 	}
