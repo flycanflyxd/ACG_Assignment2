@@ -183,6 +183,118 @@ bool shadow(Intersection point, Light light, vec3 &pixel, vector<Sphere> &sphere
 	return true;
 }
 
+vec3 Reflection_Refraction(vec3 ray, Intersection intersection, vector<Sphere> &spheres, vector<Triangle> &triangles, vector<Plane> &planes)
+{
+	static int counter = 0;
+	counter++;
+	float a = 0, b = 0, c = 0, t, d;
+	vec3 v1, v2, normal, point;
+	vec3 reflect = (ray - 2 * ray * intersection.normal * intersection.normal).normalize();
+	// Sphere
+	for (int nSphere = 0; nSphere < spheres.size(); nSphere++)
+	{
+		a = 1; //a = nx^2 + ny^2 + nz^2 = 1 cuz it's normalized
+		for (int k = 0; k < 3; k++)
+		{
+			b += 2 * reflect[k] * (intersection.position[k] - spheres[nSphere].center[k]);
+			c += pow(intersection.position[k] - spheres[nSphere].center[k], 2);
+		}
+		c -= pow(spheres[nSphere].radius, 2);
+		if (pow(b, 2) - 4 * a * c >= 0)
+		{
+			t = (-b - sqrt(pow(b, 2) - 4 * a * c)) / (2 * a);
+			if (t > 0 && !(intersection.type == 's' && intersection.index == nSphere))
+			{
+				intersection.type = 's';
+				intersection.index = nSphere;
+				intersection.t = t;
+				intersection.position = intersection.position + reflect * t;
+				intersection.normal = (intersection.position - spheres[nSphere].center).normalize();
+				intersection.material = spheres[nSphere].material;
+				if (counter == 3)
+				{
+					counter = 0;
+					return intersection.material.Reflact * (intersection.material.color / 255);
+				}
+				return intersection.material.Reflact * (intersection.material.color / 255) + Reflection_Refraction(reflect, intersection, spheres, triangles, planes);
+			}
+		}
+		a = b = c = 0;
+	}
+	// Triangle
+	for (int nTriangle = 0; nTriangle < triangles.size(); nTriangle++)
+	{
+		v1 = triangles[nTriangle].vertices[1] - triangles[nTriangle].vertices[0];
+		v2 = triangles[nTriangle].vertices[2] - triangles[nTriangle].vertices[0];
+		normal = (v1 ^ v2).normalize();
+		d = normal[0] * triangles[nTriangle].vertices[0][0] + normal[1] * triangles[nTriangle].vertices[0][1] + normal[2] * triangles[nTriangle].vertices[0][2];
+		t = (d - (normal[0] * intersection.position[0] + normal[1] * intersection.position[1] + normal[2] * intersection.position[2]))
+			/ (normal[0] * reflect[0] + normal[1] * reflect[1] + normal[2] * reflect[2]);
+		point = intersection.position + reflect * t;
+		if (((triangles[nTriangle].vertices[1] - triangles[nTriangle].vertices[0]) ^ (point - triangles[nTriangle].vertices[0])) * normal >= 0
+			&& ((triangles[nTriangle].vertices[2] - triangles[nTriangle].vertices[1]) ^ (point - triangles[nTriangle].vertices[1])) * normal >= 0
+			&& ((triangles[nTriangle].vertices[0] - triangles[nTriangle].vertices[2]) ^ (point - triangles[nTriangle].vertices[2])) * normal >= 0)
+		{
+			/*
+			(p1- p0) x (intersection - p0) * normal >= 0
+			&& (p2- p1) x (intersection - p1) * normal >= 0
+			&& (p0- p2) x (intersection - p2) * normal >= 0
+			the intersection is at the same side of each line
+			*/
+			if (t > 0)
+			{
+				intersection.type = 't';
+				intersection.index = nTriangle;
+				intersection.t = t;
+				intersection.position = point;
+				intersection.normal = normal;
+				intersection.material = triangles[nTriangle].material;
+				if (counter == 3)
+				{
+					counter = 0;
+					return intersection.material.Reflact * (intersection.material.color / 255);
+				}
+				return intersection.material.Reflact * (intersection.material.color / 255) + Reflection_Refraction(reflect, intersection, spheres, triangles, planes);
+			}
+		}
+	}
+	// Plane
+	for (int nPlane = 0; nPlane < planes.size(); nPlane++)
+	{
+		v1 = planes[nPlane].vertices[1] - planes[nPlane].vertices[0];
+		v2 = planes[nPlane].vertices[2] - planes[nPlane].vertices[0];
+		normal = (v1 ^ v2).normalize();
+		d = normal[0] * planes[nPlane].vertices[0][0] + normal[1] * planes[nPlane].vertices[0][1] + normal[2] * planes[nPlane].vertices[0][2];
+		t = (d - (normal[0] * intersection.position[0] + normal[1] * intersection.position[1] + normal[2] * intersection.position[2]))
+			/ (normal[0] * reflect[0] + normal[1] * reflect[1] + normal[2] * reflect[2]);
+		point = intersection.position + reflect * t;
+		if (((planes[nPlane].vertices[1] - planes[nPlane].vertices[0]) ^ (point - planes[nPlane].vertices[0])) * normal >= 0
+			&& ((planes[nPlane].vertices[2] - planes[nPlane].vertices[1]) ^ (point - planes[nPlane].vertices[1])) * normal >= 0
+			&& ((planes[nPlane].vertices[3] - planes[nPlane].vertices[2]) ^ (point - planes[nPlane].vertices[2])) * normal >= 0
+			&& ((planes[nPlane].vertices[0] - planes[nPlane].vertices[3]) ^ (point - planes[nPlane].vertices[3])) * normal >= 0)
+		{
+			if (t > 0)
+			{
+				intersection.type = 'p';
+				intersection.index = nPlane;
+				intersection.t = t;
+				intersection.position = point;
+				intersection.normal = normal;
+				intersection.material = planes[nPlane].material;
+				if (counter == 3)
+				{
+					counter = 0;
+					return intersection.material.Reflact * (intersection.material.color / 255);
+				}
+				return intersection.material.Reflact * (intersection.material.color / 255) + Reflection_Refraction(reflect, intersection, spheres, triangles, planes);
+			}
+		}
+	}
+	counter = 0;
+	return vec3(0, 0, 0);
+}
+
+
 void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> &spheres, vector<Triangle> &triangles, vector<Plane> &planes)
 {
 	//calculate the center position of the viewport
@@ -302,6 +414,7 @@ void rayTracing(Camera &camera, Viewport &viewport, Light light, vector<Sphere> 
 			if (intersection.t != numeric_limits<float>::max() && shadow(intersection, light, viewport.pixel[i][j], spheres, triangles, planes))
 			{
 				PhongShading(camera, intersection, viewport.pixel[i][j], light);
+				viewport.pixel[i][j] += intersection.material.Reflact * Reflection_Refraction(ray, intersection, spheres, triangles, planes);
 			}
 			intersection.t = numeric_limits<float>::max();
 		}
