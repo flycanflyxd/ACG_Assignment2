@@ -34,6 +34,14 @@ public:
 	Material material;
 };
 
+class CheckerBoard
+{
+public:
+	vec3 vertices[4];
+	int alternations;
+	Material material;
+};
+
 class Intersection
 {
 public:
@@ -46,6 +54,7 @@ public:
 	Intersection()
 	{
 		t = std::numeric_limits<float>::max();
+		material.color.set(0.2, 0.2, 0.2);
 	}
 
 };
